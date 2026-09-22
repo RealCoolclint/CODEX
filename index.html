@@ -11,6 +11,8 @@
   <main class="codex">
     <h1>CODEX</h1>
     <p class="subtitle">Script vers prompteur + fiche post-prod</p>
+    <label for="wpm">Débit (mots/minute)</label>
+    <input type="number" id="wpm" value="160" min="60" max="300">
     <div id="dropzone">
       <p class="dropzone-label">Glisse ton script .docx ici</p>
       <input type="file" id="file-input" accept=".docx" hidden>
@@ -18,6 +20,6 @@
     <div id="results"></div>
   </main>
   <script src="vendor/jszip.min.js"></script>
-  <script src="app.js?v=2"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

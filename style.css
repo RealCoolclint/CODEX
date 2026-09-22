@@ -1,0 +1,78 @@
+.codex {
+  width: min(920px, 100%);
+  margin: 0 auto;
+  padding: 32px 24px 48px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+h1,
+.subtitle,
+.dropzone-label {
+  text-transform: uppercase;
+}
+
+.subtitle,
+.dropzone-label {
+  font-family: "Lato", sans-serif;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  color: var(--text-secondary);
+}
+
+#dropzone {
+  min-height: 280px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 32px;
+  background: var(--bg-secondary);
+  border: 1px dashed var(--border-hover);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  transition:
+    background var(--transition),
+    border-color var(--transition),
+    box-shadow var(--transition);
+}
+
+#dropzone .dropzone-label {
+  pointer-events: none;
+}
+
+#dropzone.drag-over {
+  background: var(--accent-light);
+  border-style: solid;
+  border-color: var(--accent);
+  box-shadow: var(--shadow-md);
+}
+
+#dropzone.drag-over .dropzone-label {
+  color: var(--text-primary);
+  transition: color var(--transition);
+}
+
+#results ul {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+}
+
+#results li {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+#results .para-attrs {
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.results-message {
+  color: var(--text-tertiary);
+}

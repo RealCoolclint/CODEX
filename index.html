@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CODEX — Tranquility Suite</title>
+  <link rel="stylesheet" href="https://realcoolclint.github.io/tranquility-core/tranquility-core.css">
+  <link rel="stylesheet" href="style.css?v=1">
+</head>
+<body>
+  <main class="codex">
+    <h1>CODEX</h1>
+    <p class="subtitle">Script vers prompteur + fiche post-prod</p>
+    <div id="dropzone">
+      <p class="dropzone-label">Glisse ton script .docx ici</p>
+      <input type="file" id="file-input" accept=".docx" hidden>
+    </div>
+    <div id="results"></div>
+  </main>
+  <script src="vendor/jszip.min.js"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>

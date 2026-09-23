@@ -109,6 +109,16 @@
     return val;
   }
 
+  function readShadeFill(rPr) {
+    const shd = directChild(rPr, "shd");
+    if (!shd) return null;
+    const val = attr(shd, "fill");
+    if (val == null || val.trim() === "") return null;
+    const normalized = val.replace(/\s+/g, "").toUpperCase();
+    if (normalized === "AUTO") return null;
+    return normalized;
+  }
+
   function isItalic(rPr) {
     const italic = directChild(rPr, "i");
     if (!italic) return false;
@@ -151,6 +161,9 @@
     let paragraphBold = false;
     let paragraphSize = null;
     let representativeFound = false;
+    const pPr = directChild(paragraph, "pPr");
+    const paragraphShadeFill = pPr ? readShadeFill(pPr) : null;
+    const paragraphInfographic = paragraphShadeFill === "BDD7EE";
 
     for (let i = 0; i < runNodes.length; i++) {
       const run = runNodes[i];
@@ -163,12 +176,14 @@
         text += texts[j].textContent || "";
       }
 
+      const runShadeFill = rPr ? readShadeFill(rPr) : null;
       runs.push({
         text: text,
         bold: rPr ? isBold(rPr) : false,
         highlight: rPr ? readHighlight(rPr) : null,
         italic: rPr ? isItalic(rPr) : false,
-        color: rPr ? readColor(rPr) : null
+        color: rPr ? readColor(rPr) : null,
+        infographic: runShadeFill === "BDD7EE" || paragraphInfographic
       });
 
       if (!representativeFound && text.trim() !== "") {
@@ -229,24 +244,116 @@
     return hasNonEmpty;
   }
 
-  function runsToBlocks(runs) {
-    const blocks = [];
-    let leading = "";
+  function cameraFromHighlight(highlight) {
+    if (!highlight) return 1;
+    return highlight.trim().toLowerCase() === "yellow" ? 2 : 1;
+  }
+
+  function lineCountForText(text) {
+    if (text === "") return 1;
+    return String(text).split("\n").length;
+  }
+
+  function emptyInfographicsByLine(lineCount) {
+    const lines = [];
+    for (let i = 0; i < lineCount; i++) lines.push([]);
+    return lines;
+  }
+
+  function syncInfographicsByLine(block) {
+    const needed = lineCountForText(block.text);
+    while (block.infographicsByLine.length < needed) block.infographicsByLine.push([]);
+    block.infographicsByLine.length = needed;
+  }
+
+  function cloneInfographicsByLine(infographicsByLine) {
+    return infographicsByLine.map(function (line) {
+      return line.slice();
+    });
+  }
+
+  function lineIndexFromCharOffset(text, charIndex) {
+    return text.slice(0, charIndex).split("\n").length - 1;
+  }
+
+  function extractInfographicPassages(runs) {
+    const passages = [];
+    let current = null;
+
     for (let i = 0; i < runs.length; i++) {
       const text = runs[i].text;
       if (text.trim() === "") {
-        if (blocks.length) blocks[blocks.length - 1].text += text;
-        else leading += text;
+        if (current) current.text += text;
         continue;
       }
-      const camera = runs[i].highlight ? 2 : 1;
+      if (runs[i].infographic) {
+        if (current) {
+          current.text += text;
+        } else {
+          current = { startRunIndex: i, text: text };
+        }
+      } else if (current) {
+        passages.push({ startRunIndex: current.startRunIndex, text: current.text.trim() });
+        current = null;
+      }
+    }
+
+    if (current) {
+      passages.push({ startRunIndex: current.startRunIndex, text: current.text.trim() });
+    }
+
+    return passages;
+  }
+
+  function runsToBlocks(runs) {
+    const blocks = [];
+    const runPositions = [];
+    const passages = extractInfographicPassages(runs);
+    let leading = "";
+
+    for (let i = 0; i < runs.length; i++) {
+      const text = runs[i].text;
+      if (text.trim() === "") {
+        if (blocks.length) {
+          const trailingBlock = blocks[blocks.length - 1];
+          trailingBlock.text += text;
+          syncInfographicsByLine(trailingBlock);
+        } else {
+          leading += text;
+        }
+        continue;
+      }
+
+      const camera = cameraFromHighlight(runs[i].highlight);
       const last = blocks[blocks.length - 1];
-      if (last && last.type === "camera" && last.camera === camera) last.text += text;
-      else {
-        blocks.push({ type: "camera", camera: camera, text: leading + text });
+
+      if (last && last.type === "camera" && last.camera === camera) {
+        runPositions[i] = { blockIndex: blocks.length - 1, charIndex: last.text.length };
+        last.text += text;
+        syncInfographicsByLine(last);
+      } else {
+        const blockText = leading + text;
+        runPositions[i] = { blockIndex: blocks.length, charIndex: leading.length };
+        blocks.push({
+          type: "camera",
+          camera: camera,
+          text: blockText,
+          infographicsByLine: emptyInfographicsByLine(lineCountForText(blockText))
+        });
         leading = "";
       }
     }
+
+    for (let p = 0; p < passages.length; p++) {
+      const passage = passages[p];
+      const position = runPositions[passage.startRunIndex];
+      if (!position) continue;
+      const block = blocks[position.blockIndex];
+      syncInfographicsByLine(block);
+      const lineIndex = lineIndexFromCharOffset(block.text, position.charIndex);
+      block.infographicsByLine[lineIndex].push(passage.text);
+    }
+
     return blocks;
   }
 
@@ -259,6 +366,10 @@
       last.camera === block.camera
     ) {
       last.text += "\n" + block.text;
+      last.infographicsByLine = last.infographicsByLine.concat(
+        cloneInfographicsByLine(block.infographicsByLine)
+      );
+      syncInfographicsByLine(last);
     } else {
       chapter.blocks.push(block);
     }
@@ -270,10 +381,22 @@
     for (let i = 0; i < blocks.length; i++) {
       if (blocks[i].text === "") continue;
       if (pending && pending.type === "camera" && pending.camera === blocks[i].camera) {
+        pending.infographicsByLine[0] = pending.infographicsByLine[0].concat(
+          blocks[i].infographicsByLine[0]
+        );
+        for (let li = 1; li < blocks[i].infographicsByLine.length; li++) {
+          pending.infographicsByLine.push(blocks[i].infographicsByLine[li].slice());
+        }
         pending.text += blocks[i].text;
+        syncInfographicsByLine(pending);
       } else {
         if (pending) commitBlock(chapter, pending);
-        pending = { type: "camera", camera: blocks[i].camera, text: blocks[i].text };
+        pending = {
+          type: "camera",
+          camera: blocks[i].camera,
+          text: blocks[i].text,
+          infographicsByLine: cloneInfographicsByLine(blocks[i].infographicsByLine)
+        };
       }
     }
     if (pending) commitBlock(chapter, pending);

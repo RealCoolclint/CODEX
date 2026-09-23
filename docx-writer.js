@@ -216,13 +216,33 @@
       var lines = splitParagraphs(block.text);
       for (var j = 0; j < lines.length; j++) {
         if (block.type === "insert") {
-          parts.push("[INSERT VIDÉO] " + lines[j]);
+          parts.push({
+            text: "[INSERT VIDÉO] " + lines[j],
+            infographics: []
+          });
         } else {
-          parts.push(lines[j]);
+          var infographics = [];
+          if (block.infographicsByLine && Array.isArray(block.infographicsByLine[j])) {
+            infographics = block.infographicsByLine[j];
+          }
+          parts.push({
+            text: lines[j],
+            infographics: infographics
+          });
         }
       }
     }
     return parts;
+  }
+
+  function formatInfographicIncrustation(number, passages) {
+    return (
+      "INFOGRAPHIE " +
+      formatDecroNumber(number) +
+      " — « " +
+      passages.join(" […] ") +
+      " »"
+    );
   }
 
   function buildPrompteurBody(documentModel) {
@@ -307,6 +327,8 @@
     );
     parts.push(emptyParagraph(null));
 
+    var infographicCounter = 0;
+
     for (var c = 0; c < documentModel.chapters.length; c++) {
       var chapter = documentModel.chapters[c];
       parts.push(
@@ -324,10 +346,19 @@
 
       var paragraphs = chapterParagraphs(chapter);
       for (var p = 0; p < paragraphs.length; p++) {
+        var line = paragraphs[p];
+        var incrustation = "";
+        if (line.infographics.length > 0) {
+          infographicCounter += 1;
+          incrustation = formatInfographicIncrustation(
+            infographicCounter,
+            line.infographics
+          );
+        }
         rows.push(
           tableRow([
-            tableCell(paragraphs[p], { style: { size: 18 } }),
-            tableCell("", { style: { size: 18 } }),
+            tableCell(line.text, { style: { size: 18 } }),
+            tableCell(incrustation, { style: { size: 18 } }),
             tableCell("", { style: { size: 18 } })
           ])
         );

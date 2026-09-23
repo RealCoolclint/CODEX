@@ -143,7 +143,11 @@
       var block = chapter.blocks[i];
       var lines = splitParagraphs(block.text);
       for (var j = 0; j < lines.length; j++) {
-        parts.push(lines[j]);
+        if (block.type === "insert") {
+          parts.push("[INSERT VIDÉO] " + lines[j]);
+        } else {
+          parts.push(lines[j]);
+        }
       }
     }
     return parts;
@@ -175,20 +179,40 @@
 
       for (var b = 0; b < chapter.blocks.length; b++) {
         var block = chapter.blocks[b];
-        var cameraLabel = "CAMERA " + block.camera;
-        parts.push(
-          styledParagraph(
-            cameraLabel,
-            { bold: true, size: 26 },
-            { before: 200, after: 80 }
-          )
-        );
-
-        var lines = splitParagraphs(block.text);
-        for (var l = 0; l < lines.length; l++) {
+        if (block.type === "insert") {
           parts.push(
-            styledParagraph(lines[l], { size: 28 }, { after: 160, line: 312, lineRule: "auto" })
+            styledParagraph(
+              "INSERT VIDÉO",
+              { bold: true, size: 26 },
+              { before: 200, after: 80 }
+            )
           );
+          var insertLines = splitParagraphs(block.text);
+          for (var il = 0; il < insertLines.length; il++) {
+            parts.push(
+              styledParagraph(
+                insertLines[il],
+                { italic: true, size: 28 },
+                { after: 160, line: 312, lineRule: "auto" }
+              )
+            );
+          }
+        } else {
+          var cameraLabel = "CAMERA " + block.camera;
+          parts.push(
+            styledParagraph(
+              cameraLabel,
+              { bold: true, size: 26 },
+              { before: 200, after: 80 }
+            )
+          );
+
+          var lines = splitParagraphs(block.text);
+          for (var l = 0; l < lines.length; l++) {
+            parts.push(
+              styledParagraph(lines[l], { size: 28 }, { after: 160, line: 312, lineRule: "auto" })
+            );
+          }
         }
       }
     }

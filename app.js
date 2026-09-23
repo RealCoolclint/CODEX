@@ -126,8 +126,27 @@
     return val.trim();
   }
 
+  function collectParagraphRuns(paragraph) {
+    const runs = [];
+
+    function collectFromElement(element) {
+      for (let i = 0; i < element.children.length; i++) {
+        const child = element.children[i];
+        if (child.namespaceURI !== W_NS) continue;
+        if (child.localName === "r") {
+          runs.push(child);
+        } else if (child.localName === "hyperlink") {
+          collectFromElement(child);
+        }
+      }
+    }
+
+    collectFromElement(paragraph);
+    return runs;
+  }
+
   function parseParagraph(paragraph) {
-    const runNodes = paragraph.getElementsByTagNameNS(W_NS, "r");
+    const runNodes = collectParagraphRuns(paragraph);
     const runs = [];
     let paragraphBold = false;
     let paragraphSize = null;
@@ -135,7 +154,6 @@
 
     for (let i = 0; i < runNodes.length; i++) {
       const run = runNodes[i];
-      if (!belongsTo(run, paragraph)) continue;
 
       const rPr = directChild(run, "rPr");
       let text = "";
@@ -147,6 +165,7 @@
 
       runs.push({
         text: text,
+        bold: rPr ? isBold(rPr) : false,
         highlight: rPr ? readHighlight(rPr) : null,
         italic: rPr ? isItalic(rPr) : false,
         color: rPr ? readColor(rPr) : null
@@ -198,6 +217,18 @@
     return hasText;
   }
 
+  function isInsertParagraph(paragraph) {
+    if (paragraph.paragraphBold && paragraph.paragraphSize === 24) return false;
+    let hasNonEmpty = false;
+    for (let i = 0; i < paragraph.runs.length; i++) {
+      const run = paragraph.runs[i];
+      if (run.text.trim() === "") continue;
+      hasNonEmpty = true;
+      if (!run.bold) return false;
+    }
+    return hasNonEmpty;
+  }
+
   function runsToBlocks(runs) {
     const blocks = [];
     let leading = "";
@@ -210,9 +241,9 @@
       }
       const camera = runs[i].highlight ? 2 : 1;
       const last = blocks[blocks.length - 1];
-      if (last && last.camera === camera) last.text += text;
+      if (last && last.type === "camera" && last.camera === camera) last.text += text;
       else {
-        blocks.push({ camera: camera, text: leading + text });
+        blocks.push({ type: "camera", camera: camera, text: leading + text });
         leading = "";
       }
     }
@@ -221,8 +252,16 @@
 
   function commitBlock(chapter, block) {
     const last = chapter.blocks[chapter.blocks.length - 1];
-    if (last && last.camera === block.camera) last.text += "\n" + block.text;
-    else chapter.blocks.push(block);
+    if (
+      block.type === "camera" &&
+      last &&
+      last.type === "camera" &&
+      last.camera === block.camera
+    ) {
+      last.text += "\n" + block.text;
+    } else {
+      chapter.blocks.push(block);
+    }
   }
 
   function appendParagraphBlocks(chapter, runs) {
@@ -230,13 +269,24 @@
     let pending = null;
     for (let i = 0; i < blocks.length; i++) {
       if (blocks[i].text === "") continue;
-      if (pending && pending.camera === blocks[i].camera) pending.text += blocks[i].text;
-      else {
+      if (pending && pending.type === "camera" && pending.camera === blocks[i].camera) {
+        pending.text += blocks[i].text;
+      } else {
         if (pending) commitBlock(chapter, pending);
-        pending = { camera: blocks[i].camera, text: blocks[i].text };
+        pending = { type: "camera", camera: blocks[i].camera, text: blocks[i].text };
       }
     }
     if (pending) commitBlock(chapter, pending);
+  }
+
+  function isScriptEndMarker(text) {
+    const trimmed = String(text || "").trim();
+    if (trimmed.toLowerCase() === "fin du script") return true;
+    const normalized = trimmed
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase();
+    return normalized.startsWith("RECAP CAM");
   }
 
   function buildDocumentModel(paragraphs) {
@@ -252,7 +302,7 @@
     for (let i = index; i < paragraphs.length; i++) {
       const paragraph = paragraphs[i];
       const trimmed = paragraphText(paragraph).trim();
-      if (trimmed.toLowerCase() === "fin du script") break;
+      if (isScriptEndMarker(trimmed)) break;
       if (isMetaParagraph(paragraph)) continue;
       if (trimmed === "") continue;
       if (paragraph.paragraphBold && paragraph.paragraphSize === 24) {
@@ -263,6 +313,10 @@
       if (!current) {
         current = { title: "SANS TITRE", blocks: [] };
         model.chapters.push(current);
+      }
+      if (isInsertParagraph(paragraph)) {
+        current.blocks.push({ type: "insert", text: trimmed });
+        continue;
       }
       appendParagraphBlocks(current, paragraph.runs);
     }
@@ -288,8 +342,10 @@
   function chapterPlainText(chapter) {
     let text = "";
     for (let i = 0; i < chapter.blocks.length; i++) {
+      const block = chapter.blocks[i];
+      if (block.type === "insert") continue;
       if (text) text += " ";
-      text += chapter.blocks[i].text;
+      text += block.text;
     }
     return text;
   }
@@ -418,7 +474,7 @@
         const block = chapter.blocks[j];
         const li = document.createElement("li");
         const label = document.createElement("strong");
-        label.textContent = "CAMERA " + block.camera;
+        label.textContent = block.type === "insert" ? "INSERT VIDÉO" : "CAMERA " + block.camera;
         li.appendChild(label);
         li.appendChild(document.createElement("br"));
         li.appendChild(document.createTextNode(block.text));

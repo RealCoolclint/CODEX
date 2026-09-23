@@ -422,7 +422,7 @@
       W_NS +
       '">' +
       "<w:docDefaults>" +
-      "<w:rPrDefault><w:rPr/></w:rPrDefault>" +
+      '<w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/></w:rPr></w:rPrDefault>' +
       "<w:pPrDefault/>" +
       "</w:docDefaults>" +
       "</w:styles>"

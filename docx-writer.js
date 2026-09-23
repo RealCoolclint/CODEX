@@ -72,6 +72,78 @@
     return String(text || "").split(/\r?\n/);
   }
 
+  function formatDecroNumber(number) {
+    var value = Math.max(1, Math.floor(Number(number) || 0));
+    return value < 10 ? "0" + value : String(value);
+  }
+
+  function collectDecrochages(documentModel) {
+    var list = [];
+    var index = {};
+    var counter = 0;
+
+    for (var c = 0; c < documentModel.chapters.length; c++) {
+      var chapter = documentModel.chapters[c];
+      for (var b = 0; b < chapter.blocks.length; b++) {
+        var block = chapter.blocks[b];
+        if (block.type === "insert" || Number(block.camera) !== 2) continue;
+        counter += 1;
+        var entry = {
+          number: counter,
+          label: formatDecroNumber(counter),
+          chapterTitle: chapter.title || "",
+          text: block.text
+        };
+        list.push(entry);
+        index[c + ":" + b] = entry;
+      }
+    }
+
+    return { list: list, index: index };
+  }
+
+  function pageBreakParagraph() {
+    return "<w:p><w:r><w:br w:type=\"page\"/></w:r></w:p>";
+  }
+
+  function appendCameraTextLines(parts, text, style) {
+    var lines = splitParagraphs(text);
+    for (var i = 0; i < lines.length; i++) {
+      parts.push(
+        styledParagraph(lines[i], style, { after: 160, line: 312, lineRule: "auto" })
+      );
+    }
+  }
+
+  function buildPrompteurDecroAppendix(parts, decrochages) {
+    parts.push(pageBreakParagraph());
+    parts.push(
+      styledParagraph("ANNEXE — DÉCROCHAGES CAM 2", { bold: true, size: 44 }, { after: 120 })
+    );
+    parts.push(
+      styledParagraph(
+        decrochages.length === 1
+          ? "1 décrochage — à tourner à la suite"
+          : decrochages.length + " décrochages — à tourner à la suite",
+        { italic: true, size: 22 },
+        null
+      )
+    );
+    parts.push(emptyParagraph(80));
+
+    for (var d = 0; d < decrochages.length; d++) {
+      var decro = decrochages[d];
+      parts.push(
+        styledParagraph(
+          "DÉCRO " + decro.label + " — " + decro.chapterTitle,
+          { bold: true, size: 26 },
+          { before: 200, after: 80 }
+        )
+      );
+      appendCameraTextLines(parts, decro.text, { size: 28 });
+    }
+  }
+
   function sectionProperties() {
     return (
       "<w:sectPr>" +
@@ -124,7 +196,6 @@
     var tblPr =
       "<w:tblPr>" +
       '<w:tblW w:w="8640" w:type="dxa"/>' +
-      '<w:tblLayout w:type="fixed"/>' +
       "<w:tblBorders>" +
       '<w:top w:val="single" w:sz="4" w:color="auto"/>' +
       '<w:left w:val="single" w:sz="4" w:color="auto"/>' +
@@ -133,6 +204,7 @@
       '<w:insideH w:val="single" w:sz="4" w:color="auto"/>' +
       '<w:insideV w:val="single" w:sz="4" w:color="auto"/>' +
       "</w:tblBorders>" +
+      '<w:tblLayout w:type="fixed"/>' +
       "</w:tblPr>";
     return "<w:tbl>" + tblPr + grid + rows.join("") + "</w:tbl>";
   }
@@ -155,6 +227,7 @@
 
   function buildPrompteurBody(documentModel) {
     var parts = [];
+    var decroData = collectDecrochages(documentModel);
 
     parts.push(
       styledParagraph("SCRIPT TOURNAGE — PROMPTEUR", { bold: true, size: 44 }, { after: 120 })
@@ -187,18 +260,12 @@
               { before: 200, after: 80 }
             )
           );
-          var insertLines = splitParagraphs(block.text);
-          for (var il = 0; il < insertLines.length; il++) {
-            parts.push(
-              styledParagraph(
-                insertLines[il],
-                { italic: true, size: 28 },
-                { after: 160, line: 312, lineRule: "auto" }
-              )
-            );
-          }
+          appendCameraTextLines(parts, block.text, { italic: true, size: 28 });
         } else {
-          var cameraLabel = "CAMERA " + block.camera;
+          var decro = decroData.index[c + ":" + b];
+          var cameraLabel = decro
+            ? "CAMERA 2 — DÉCRO " + decro.label
+            : "CAMERA " + block.camera;
           parts.push(
             styledParagraph(
               cameraLabel,
@@ -206,15 +273,13 @@
               { before: 200, after: 80 }
             )
           );
-
-          var lines = splitParagraphs(block.text);
-          for (var l = 0; l < lines.length; l++) {
-            parts.push(
-              styledParagraph(lines[l], { size: 28 }, { after: 160, line: 312, lineRule: "auto" })
-            );
-          }
+          appendCameraTextLines(parts, block.text, { size: 28 });
         }
       }
+    }
+
+    if (decroData.list.length > 0) {
+      buildPrompteurDecroAppendix(parts, decroData.list);
     }
 
     return parts.join("");
@@ -348,11 +413,6 @@
     }
 
     var zip = new JSZip();
-    zip.file(
-      "mimetype",
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      { compression: "STORE" }
-    );
     zip.file("[Content_Types].xml", contentTypesXml());
     zip.folder("_rels").file(".rels", packageRelsXml());
     zip.folder("word").file("document.xml", documentXml);

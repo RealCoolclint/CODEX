@@ -2,7 +2,11 @@
   const W_NS = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
   const dropzone = document.getElementById("dropzone");
-  const results = document.getElementById("results");
+  const resultsOutput = document.getElementById("results-output");
+  const downloadActions = document.getElementById("download-actions");
+  const btnDownloadPrompteur = document.getElementById("btn-download-prompteur");
+  const btnDownloadFiche = document.getElementById("btn-download-fiche");
+  const btnDownloadBoth = document.getElementById("btn-download-both");
   const wpmInput = document.getElementById("wpm");
   let currentModel = null;
 
@@ -290,13 +294,98 @@
     return text;
   }
 
+  function setDownloadActionsVisible(visible) {
+    downloadActions.hidden = !visible;
+    btnDownloadPrompteur.disabled = !visible;
+    btnDownloadFiche.disabled = !visible;
+    btnDownloadBoth.disabled = !visible;
+  }
+
+  function sanitizeTitle(title) {
+    const sanitized = String(title || "")
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toUpperCase()
+      .replace(/\s+/g, "_")
+      .replace(/[^A-Z0-9_]/g, "");
+    return sanitized || "SANS_TITRE";
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function delay(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
+  async function downloadPrompteur(model) {
+    const blob = await buildPrompteurDocx(model);
+    downloadBlob(blob, "SCRIPT_PROMPTEUR_" + sanitizeTitle(model.title) + ".docx");
+  }
+
+  async function downloadFiche(model) {
+    const blob = await buildFichePostprodDocx(model);
+    downloadBlob(blob, "FICHE_POSTPROD_" + sanitizeTitle(model.title) + ".docx");
+  }
+
+  async function downloadBoth(model) {
+    await downloadPrompteur(model);
+    await delay(300);
+    await downloadFiche(model);
+  }
+
+  btnDownloadPrompteur.addEventListener("click", function () {
+    if (!currentModel) return;
+    btnDownloadPrompteur.disabled = true;
+    downloadPrompteur(currentModel)
+      .catch(function (error) {
+        console.error(error);
+      })
+      .finally(function () {
+        if (currentModel) btnDownloadPrompteur.disabled = false;
+      });
+  });
+
+  btnDownloadFiche.addEventListener("click", function () {
+    if (!currentModel) return;
+    btnDownloadFiche.disabled = true;
+    downloadFiche(currentModel)
+      .catch(function (error) {
+        console.error(error);
+      })
+      .finally(function () {
+        if (currentModel) btnDownloadFiche.disabled = false;
+      });
+  });
+
+  btnDownloadBoth.addEventListener("click", function () {
+    if (!currentModel) return;
+    btnDownloadBoth.disabled = true;
+    downloadBoth(currentModel)
+      .catch(function (error) {
+        console.error(error);
+      })
+      .finally(function () {
+        if (currentModel) btnDownloadBoth.disabled = false;
+      });
+  });
+
   function showMessage(message) {
     currentModel = null;
-    results.replaceChildren();
+    setDownloadActionsVisible(false);
+    resultsOutput.replaceChildren();
     const p = document.createElement("p");
     p.className = "results-message";
     p.textContent = message;
-    results.appendChild(p);
+    resultsOutput.appendChild(p);
   }
 
   function renderModel(model) {
@@ -309,20 +398,21 @@
       totalSeconds += seconds;
     }
 
-    results.replaceChildren();
+    resultsOutput.replaceChildren();
+    setDownloadActionsVisible(true);
     const total = document.createElement("p");
     total.textContent = "Durée totale estimée : " + formatDuration(totalSeconds);
-    results.appendChild(total);
+    resultsOutput.appendChild(total);
     if (model.title) {
       const title = document.createElement("h2");
       title.textContent = model.title.toUpperCase();
-      results.appendChild(title);
+      resultsOutput.appendChild(title);
     }
     for (let i = 0; i < model.chapters.length; i++) {
       const chapter = model.chapters[i];
       const heading = document.createElement("h2");
       heading.textContent = chapter.title.toUpperCase() + " (" + formatDuration(durations[i]) + ")";
-      results.appendChild(heading);
+      resultsOutput.appendChild(heading);
       const list = document.createElement("ul");
       for (let j = 0; j < chapter.blocks.length; j++) {
         const block = chapter.blocks[j];
@@ -334,7 +424,7 @@
         li.appendChild(document.createTextNode(block.text));
         list.appendChild(li);
       }
-      results.appendChild(list);
+      resultsOutput.appendChild(list);
     }
   }
 

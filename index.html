@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>CODEX — Tranquility Suite</title>
   <link rel="stylesheet" href="https://realcoolclint.github.io/tranquility-core/tranquility-core.css">
-  <link rel="stylesheet" href="style.css?v=1">
+  <link rel="stylesheet" href="style.css?v=6">
 </head>
 <body>
   <main class="codex">
@@ -17,9 +17,17 @@
       <p class="dropzone-label">Glisse ton script .docx ici</p>
       <input type="file" id="file-input" accept=".docx" hidden>
     </div>
-    <div id="results"></div>
+    <div id="results">
+      <div id="results-output"></div>
+      <div id="download-actions" class="flex gap-sm" hidden>
+        <button type="button" id="btn-download-prompteur" class="btn btn-primary" disabled>TÉLÉCHARGER SCRIPT PROMPTEUR</button>
+        <button type="button" id="btn-download-fiche" class="btn btn-secondary" disabled>TÉLÉCHARGER FICHE POST-PROD</button>
+        <button type="button" id="btn-download-both" class="btn btn-secondary" disabled>TÉLÉCHARGER LES DEUX</button>
+      </div>
+    </div>
   </main>
   <script src="vendor/jszip.min.js"></script>
-  <script src="app.js?v=5"></script>
+  <script src="docx-writer.js?v=1"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>

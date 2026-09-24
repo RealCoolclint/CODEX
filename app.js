@@ -232,8 +232,27 @@
     return hasText;
   }
 
+  function isChapterTitleParagraph(paragraph) {
+    return (
+      paragraph.paragraphBold &&
+      paragraph.paragraphSize != null &&
+      paragraph.paragraphSize >= 24
+    );
+  }
+
+  function isPossibleUnrecognizedInsert(text) {
+    const trimmed = String(text || "").trim();
+    return trimmed.length > 2 && trimmed.startsWith("*") && trimmed.endsWith("*");
+  }
+
+  function truncateForWarning(text, maxLength) {
+    const value = String(text);
+    if (value.length <= maxLength) return value;
+    return value.slice(0, maxLength) + "…";
+  }
+
   function isInsertParagraph(paragraph) {
-    if (paragraph.paragraphBold && paragraph.paragraphSize === 24) return false;
+    if (isChapterTitleParagraph(paragraph)) return false;
     let hasNonEmpty = false;
     for (let i = 0; i < paragraph.runs.length; i++) {
       const run = paragraph.runs[i];
@@ -413,7 +432,9 @@
   }
 
   function buildDocumentModel(paragraphs) {
-    const model = { title: "", chapters: [] };
+    const model = { title: "", chapters: [], warnings: [] };
+    const possibleUnrecognizedInserts = [];
+    let warnedBeforeFirstTitle = false;
     let index = 0;
     while (index < paragraphs.length && paragraphText(paragraphs[index]).trim() === "") index += 1;
     if (index < paragraphs.length) {
@@ -428,7 +449,7 @@
       if (isScriptEndMarker(trimmed)) break;
       if (isMetaParagraph(paragraph)) continue;
       if (trimmed === "") continue;
-      if (paragraph.paragraphBold && paragraph.paragraphSize === 24) {
+      if (isChapterTitleParagraph(paragraph)) {
         current = { title: trimmed, blocks: [] };
         model.chapters.push(current);
         continue;
@@ -436,13 +457,48 @@
       if (!current) {
         current = { title: "SANS TITRE", blocks: [] };
         model.chapters.push(current);
+        if (!warnedBeforeFirstTitle) {
+          warnedBeforeFirstTitle = true;
+          model.warnings.push(
+            'Texte trouvé avant le premier titre de chapitre : « ' +
+              truncateForWarning(trimmed, 60) +
+              " ». S'il s'agit d'un titre, mets-le en gras, taille 12 minimum. Sinon, vérifie que ce texte doit bien être lu."
+          );
+        }
       }
       if (isInsertParagraph(paragraph)) {
         current.blocks.push({ type: "insert", text: trimmed });
         continue;
       }
+      if (isPossibleUnrecognizedInsert(trimmed)) {
+        possibleUnrecognizedInserts.push(trimmed);
+      }
       appendParagraphBlocks(current, paragraph.runs);
     }
+
+    const insertCounts = new Map();
+    const insertOrder = [];
+    for (let j = 0; j < possibleUnrecognizedInserts.length; j++) {
+      const insertText = possibleUnrecognizedInserts[j];
+      if (!insertCounts.has(insertText)) {
+        insertCounts.set(insertText, 1);
+        insertOrder.push(insertText);
+      } else {
+        insertCounts.set(insertText, insertCounts.get(insertText) + 1);
+      }
+    }
+    for (let k = 0; k < insertOrder.length; k++) {
+      const insertText = insertOrder[k];
+      const count = insertCounts.get(insertText);
+      model.warnings.push(
+        'Possible insert non reconnu : « ' +
+          insertText +
+          " »" +
+          (count > 1 ? " (" + count + " fois)" : "") +
+          " — lu comme du texte face caméra. Pour qu'il devienne un insert, mets tout le paragraphe en gras."
+      );
+    }
+
     return model;
   }
 
@@ -579,6 +635,22 @@
 
     resultsOutput.replaceChildren();
     setDownloadActionsVisible(true);
+    if (model.warnings && model.warnings.length > 0) {
+      const warningsBox = document.createElement("div");
+      warningsBox.className = "codex-warnings";
+      const warningsTitle = document.createElement("p");
+      warningsTitle.className = "codex-warnings-title";
+      warningsTitle.textContent = "POINTS À VÉRIFIER (" + model.warnings.length + ")";
+      warningsBox.appendChild(warningsTitle);
+      const warningsList = document.createElement("ul");
+      for (let w = 0; w < model.warnings.length; w++) {
+        const warningItem = document.createElement("li");
+        warningItem.textContent = model.warnings[w];
+        warningsList.appendChild(warningItem);
+      }
+      warningsBox.appendChild(warningsList);
+      resultsOutput.appendChild(warningsBox);
+    }
     const total = document.createElement("p");
     total.textContent = "Durée totale estimée : " + formatDuration(totalSeconds);
     resultsOutput.appendChild(total);

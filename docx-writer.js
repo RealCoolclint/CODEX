@@ -77,6 +77,29 @@
     return value < 10 ? "0" + value : String(value);
   }
 
+  function countWords(text) {
+    return String(text || "")
+      .replace(/\n/g, " ")
+      .split(" ")
+      .filter(function (word) {
+        return word !== "";
+      }).length;
+  }
+
+  function formatTimecode(seconds) {
+    var total = Math.round(Number(seconds));
+    if (!Number.isFinite(total) || total < 0) return "00:00";
+    var minutes = Math.floor(total / 60);
+    var remain = total % 60;
+    return (
+      (minutes < 10 ? "0" : "") +
+      minutes +
+      ":" +
+      (remain < 10 ? "0" : "") +
+      remain
+    );
+  }
+
   function collectDecrochages(documentModel) {
     var list = [];
     var index = {};
@@ -172,8 +195,9 @@
     options = options || {};
     var cellText = text == null ? "" : String(text);
     var style = options.style || { size: 18 };
+    var width = options.width != null ? options.width : 2880;
     var tcPr =
-      '<w:tcPr><w:tcW w:w="2880" w:type="dxa"/></w:tcPr>';
+      '<w:tcPr><w:tcW w:w="' + width + '" w:type="dxa"/></w:tcPr>';
     return (
       "<w:tc>" +
       tcPr +
@@ -189,9 +213,10 @@
   function postprodTable(rows) {
     var grid =
       "<w:tblGrid>" +
+      '<w:gridCol w:w="1080"/>' +
+      '<w:gridCol w:w="3240"/>' +
       '<w:gridCol w:w="2880"/>' +
-      '<w:gridCol w:w="2880"/>' +
-      '<w:gridCol w:w="2880"/>' +
+      '<w:gridCol w:w="1440"/>' +
       "</w:tblGrid>";
     var tblPr =
       "<w:tblPr>" +
@@ -217,7 +242,9 @@
       for (var j = 0; j < lines.length; j++) {
         if (block.type === "insert") {
           parts.push({
-            text: "[INSERT VIDÉO] " + lines[j],
+            text: "INSERT VIDÉO",
+            incrustation: lines[j],
+            isInsert: true,
             infographics: []
           });
         } else {
@@ -227,7 +254,8 @@
           }
           parts.push({
             text: lines[j],
-            infographics: infographics
+            infographics: infographics,
+            isInsert: false
           });
         }
       }
@@ -305,8 +333,10 @@
     return parts.join("");
   }
 
-  function buildFichePostprodBody(documentModel) {
+  function buildFichePostprodBody(documentModel, wpm) {
     var parts = [];
+    var rate = Number(wpm);
+    if (!Number.isFinite(rate) || rate <= 0) rate = 160;
 
     parts.push(
       styledParagraph(
@@ -325,9 +355,17 @@
         null
       )
     );
+    parts.push(
+      styledParagraph(
+        "Timings estimés sur la lecture à " + rate + " mots/minute, hors reprises.",
+        { italic: true, size: 18 },
+        null
+      )
+    );
     parts.push(emptyParagraph(null));
 
     var infographicCounter = 0;
+    var cumulativeWords = 0;
 
     for (var c = 0; c < documentModel.chapters.length; c++) {
       var chapter = documentModel.chapters[c];
@@ -338,30 +376,41 @@
       var rows = [];
       rows.push(
         tableRow([
-          tableCell("Phrase repère (extrait du script)", { style: { bold: true, size: 18 } }),
-          tableCell("Incrustation / image à prévoir", { style: { bold: true, size: 18 } }),
-          tableCell("Sources", { style: { bold: true, size: 18 } })
+          tableCell("TC estimé", { style: { bold: true, size: 18 }, width: 1080 }),
+          tableCell("Phrase repère (extrait du script)", { style: { bold: true, size: 18 }, width: 3240 }),
+          tableCell("Incrustation / image à prévoir", { style: { bold: true, size: 18 }, width: 2880 }),
+          tableCell("Sources", { style: { bold: true, size: 18 }, width: 1440 })
         ])
       );
 
       var paragraphs = chapterParagraphs(chapter);
       for (var p = 0; p < paragraphs.length; p++) {
         var line = paragraphs[p];
+        var timecode = formatTimecode(Math.round((cumulativeWords / rate) * 60));
         var incrustation = "";
-        if (line.infographics.length > 0) {
+
+        if (line.isInsert) {
+          incrustation = line.incrustation == null ? "" : String(line.incrustation);
+        } else if (line.infographics.length > 0) {
           infographicCounter += 1;
           incrustation = formatInfographicIncrustation(
             infographicCounter,
             line.infographics
           );
         }
+
         rows.push(
           tableRow([
-            tableCell(line.text, { style: { size: 18 } }),
-            tableCell(incrustation, { style: { size: 18 } }),
-            tableCell("", { style: { size: 18 } })
+            tableCell(timecode, { style: { size: 18 }, width: 1080 }),
+            tableCell(line.text, { style: { size: 18 }, width: 3240 }),
+            tableCell(incrustation, { style: { size: 18 }, width: 2880 }),
+            tableCell("", { style: { size: 18 }, width: 1440 })
           ])
         );
+
+        if (!line.isInsert) {
+          cumulativeWords += countWords(line.text);
+        }
       }
 
       parts.push(postprodTable(rows));
@@ -464,8 +513,8 @@
     return assembleDocx(wrapDocument(body));
   }
 
-  function buildFichePostprodDocx(documentModel) {
-    var body = buildFichePostprodBody(documentModel || { title: "", chapters: [] });
+  function buildFichePostprodDocx(documentModel, wpm) {
+    var body = buildFichePostprodBody(documentModel || { title: "", chapters: [] }, wpm);
     return assembleDocx(wrapDocument(body));
   }
 

@@ -511,7 +511,7 @@
   }
 
   async function downloadFiche(model) {
-    const blob = await buildFichePostprodDocx(model);
+    const blob = await buildFichePostprodDocx(model, wpmInput.value);
     downloadBlob(blob, "FICHE_POSTPROD_" + sanitizeTitle(model.title) + ".docx");
   }
 

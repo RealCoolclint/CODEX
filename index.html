@@ -3,13 +3,37 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://realcoolclint.github.io; font-src https://fonts.gstatic.com; img-src 'self' data: blob: https://raw.githubusercontent.com; media-src 'self' blob:; connect-src https://raw.githubusercontent.com https://api.github.com https://realcoolclint.github.io;">
+  <script>
+    const now = new Date();
+    const jj = String(now.getDate()).padStart(2,'0');
+    const mm = String(now.getMonth()+1).padStart(2,'0');
+    const aa = String(now.getFullYear()).slice(-2);
+    window.APP_VERSION = 'V1.' + jj + '.' + mm + '.' + aa;
+  </script>
   <title>CODEX — Tranquility Suite</title>
   <link rel="stylesheet" href="https://realcoolclint.github.io/tranquility-core/tranquility-core.css">
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=8">
 </head>
 <body>
+  <div id="mercury-opening">
+    <canvas id="mercury-grid"></canvas>
+    <div class="mercury-center">
+      <svg id="mercury-radar" viewBox="0 0 260 260" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="130" cy="130" r="115" fill="none" stroke="rgba(255,255,255,0.7)" stroke-width="1.2" stroke-dasharray="722" stroke-dashoffset="722" id="mercury-radar-circle"/>
+      </svg>
+      <video id="mercury-patch" src="assets/ambiance-codex.mp4" autoplay muted playsinline loop></video>
+      <span id="mercury-version"></span>
+    </div>
+  </div>
+  <div id="mercury-flash"></div>
+  <header class="app-header">
+    <div class="header-brand">
+      <img class="header-logo" src="assets/PATCH_Codex.png" alt="CODEX">
+      <span class="header-title">CODEX</span>
+    </div>
+  </header>
   <main class="codex">
-    <h1>CODEX</h1>
     <p class="subtitle">Script vers prompteur + fiche post-prod</p>
     <label for="wpm">Débit (mots/minute)</label>
     <input type="number" id="wpm" value="160" min="60" max="300">
@@ -26,6 +50,43 @@
       </div>
     </div>
   </main>
+  <script>
+  (function() {
+    const opening = document.getElementById('mercury-opening');
+    const versionEl = document.getElementById('mercury-version');
+    const radarCircle = document.getElementById('mercury-radar-circle');
+    const flash = document.getElementById('mercury-flash');
+    const canvas = document.getElementById('mercury-grid');
+    const ctx = canvas.getContext('2d');
+    if (versionEl) versionEl.textContent = window.APP_VERSION || '';
+    function drawGrid() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const spacing = 28;
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      for (let x = 0; x < canvas.width; x += spacing) {
+        for (let y = 0; y < canvas.height; y += spacing) {
+          ctx.beginPath();
+          ctx.arc(x, y, 0.8, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+    drawGrid();
+    setTimeout(() => { opening.style.opacity = '1'; }, 180);
+    setTimeout(() => { const patch = document.getElementById('mercury-patch'); if (patch) patch.classList.add('visible'); }, 550);
+    setTimeout(() => { if (versionEl) versionEl.classList.add('visible'); }, 1650);
+    setTimeout(() => { radarCircle.style.transition = 'stroke-dashoffset 1.5s ease'; radarCircle.style.strokeDashoffset = '0'; }, 410);
+    setTimeout(() => { flash.style.opacity = '1'; }, 4000);
+    setTimeout(() => {
+      opening.style.display = 'none';
+      flash.style.transition = 'opacity 0.5s ease-out';
+      flash.style.opacity = '0';
+      if (typeof window.onMercuryComplete === 'function') window.onMercuryComplete();
+    }, 4230);
+  })();
+  </script>
   <script src="vendor/jszip.min.js"></script>
   <script src="docx-writer.js?v=6"></script>
   <script src="app.js?v=10"></script>
